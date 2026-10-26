@@ -47,11 +47,11 @@
 
             <CallEndpoint url="https://${/api_host}/ctia/incident/search" method="GET" savePath="/response">
                 <BearerAuthentication token="${/access_token}" />
+                <QueryParameter name="query"      value='timestamp:{"${/bookmark}" TO *]' />
+                <QueryParameter name="sort_by"    value="timestamp" />
+                <QueryParameter name="sort_order" value="asc" />
+                <QueryParameter name="limit"      value="${/page_size}" />
                 <RequestHeader name="Accept" value="application/json" />
-                <RequestParameter name="query"      value='timestamp:{"${/bookmark}" TO *]' />
-                <RequestParameter name="sort_by"    value="timestamp" />
-                <RequestParameter name="sort_order" value="asc" />
-                <RequestParameter name="limit"      value="${/page_size}" />
             </CallEndpoint>
 
             <If condition="/response/status_code != 200">
