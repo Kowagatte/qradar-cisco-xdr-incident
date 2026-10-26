@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+    Cisco XDR - Incidents : workflow parameter values
+
+    Region hosts:
+      North America : auth_host = visibility.amp.cisco.com        api_host = private.intel.amp.cisco.com
+      Europe        : auth_host = visibility.eu.amp.cisco.com     api_host = private.intel.eu.amp.cisco.com
+      Asia Pacific  : auth_host = visibility.apjc.amp.cisco.com   api_host = private.intel.apjc.amp.cisco.com
+-->
+<WorkflowParameterValues xmlns="http://qradar.ibm.com/UniversalCloudRESTAPI/WorkflowParameterValues/V1">
+    <Value name="auth_host"     value="visibility.amp.cisco.com" />
+    <Value name="api_host"      value="private.intel.amp.cisco.com" />
+    <Value name="client_id"     value="client-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
+    <Value name="client_secret" value="YOUR_API_CLIENT_PASSWORD" />
+    <Value name="page_size"     value="100" />
+    <Value name="lookback_ms"   value="86400000" />
+</WorkflowParameterValues>

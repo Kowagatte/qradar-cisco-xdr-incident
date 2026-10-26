@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+    Cisco XDR - Incidents
+    QRadar Universal Cloud REST API workflow
+
+    Flow per poll:
+      1. Get an OAuth2 access token (client credentials) from Cisco XDR (IROH).
+      2. Query the CTIA incident search API for incidents whose timestamp is
+         newer than the stored bookmark, sorted ascending.
+      3. Post each incident as one JSON event, move the bookmark to the last
+         incident's time field, and repeat until a page comes back short.
+-->
+<Workflow name="CiscoXDRIncidents" version="1.0" xmlns="http://qradar.ibm.com/UniversalCloudRESTAPI/Workflow/V1">
+
+    <Parameters>
+        <Parameter name="auth_host"     label="XDR Auth Host"            required="true" />
+        <Parameter name="api_host"      label="XDR Private Intel Host"   required="true" />
+        <Parameter name="client_id"     label="API Client ID"            required="true" />
+        <Parameter name="client_secret" label="API Client Password"      required="true" secret="true" />
+        <Parameter name="page_size"     label="Page Size"                required="false" default="100" />
+        <Parameter name="lookback_ms"   label="Initial Lookback (ms)"    required="false" default="86400000" />
+    </Parameters>
+
+    <Actions>
+
+        <!-- First run only: start the bookmark at now minus the lookback window -->
+        <FormatDate pattern="yyyy-MM-dd'T'HH:mm:ss.SSS'Z'" timeZone="UTC" time="${time() - /lookback_ms}" savePath="/initial_bookmark" />
+        <Initialize path="/bookmark" value="${/initial_bookmark}" />
+
+        <!-- Step 1: OAuth2 client-credentials token (valid ~10 minutes, so fetch one every poll) -->
+        <CallEndpoint url="https://${/auth_host}/iroh/oauth2/token" method="POST" savePath="/token_response">
+            <BasicAuthentication username="${/client_id}" password="${/client_secret}" />
+            <RequestHeader name="Accept" value="application/json" />
+            <UrlEncodedFormRequestBody>
+                <Parameter name="grant_type" value="client_credentials" />
+            </UrlEncodedFormRequestBody>
+        </CallEndpoint>
+
+        <If condition="/token_response/status_code != 200">
+            <Abort reason="Cisco XDR token request failed: ${/token_response/status_code} ${/token_response/body}" />
+        </If>
+
+        <Set path="/access_token" value="${/token_response/body/access_token}" />
+
+        <!-- Step 2/3: page through new incidents using the bookmark as a cursor -->
+        <DoWhile condition="/page_count >= /page_size">
+
+            <CallEndpoint url="https://${/api_host}/ctia/incident/search" method="GET" savePath="/response">
+                <BearerAuthentication token="${/access_token}" />
+                <RequestHeader name="Accept" value="application/json" />
+                <RequestParameter name="query"      value='timestamp:{"${/bookmark}" TO *]' />
+                <RequestParameter name="sort_by"    value="timestamp" />
+                <RequestParameter name="sort_order" value="asc" />
+                <RequestParameter name="limit"      value="${/page_size}" />
+            </CallEndpoint>
+
+            <If condition="/response/status_code != 200">
+                <Abort reason="Cisco XDR incident search failed: ${/response/status_code} ${/response/body}" />
+            </If>
+
+            <!-- The search API returns a plain JSON array of incident objects -->
+            <Set path="/page_count" value="${count(/response/body)}" />
+
+            <If condition="/page_count > 0">
+                <PostEvents path="/response/body" source="${/api_host}" />
+
+                <!-- Results are ascending, so the last item holds the newest timestamp -->
+                <ForEach item="/incident" items="/response/body">
+                    <Set path="/last_seen" value="${/incident/timestamp}" />
+                </ForEach>
+                <Set path="/bookmark" value="${/last_seen}" />
+            </If>
+
+        </DoWhile>
+
+    </Actions>
+
+    <Tests>
+        <DNSResolutionTest host="${/auth_host}" />
+        <TCPConnectionTest host="${/auth_host}" />
+        <SSLHandshakeTest  host="${/auth_host}" />
+        <HTTPConnectionThroughProxyTest url="https://${/auth_host}" />
+
+        <DNSResolutionTest host="${/api_host}" />
+        <TCPConnectionTest host="${/api_host}" />
+        <SSLHandshakeTest  host="${/api_host}" />
+        <HTTPConnectionThroughProxyTest url="https://${/api_host}" />
+    </Tests>
+
+</Workflow>
